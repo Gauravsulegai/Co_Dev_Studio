@@ -27,7 +27,7 @@ export default function Room() {
   useEffect(() => {
     const storedUsername = localStorage.getItem('username') || 'Anonymous';
     setUsername(storedUsername);
-    socket = io('https://co-dev-studio.onrender.com');
+    socket = io('https://co-dev-studio.onrender.com'); //IF POSSIBLE MAKE IT: http://localhost:3000, WHILE RUNNING THE CODE LIVE USING LOCALHOST SERVER (IF THE DEPLOYED VERSION ISNT WORKING`)
     
     socket.on('connect', () => {
       if (roomId && storedUsername) socket.emit('join-room', { roomId, username: storedUsername });
