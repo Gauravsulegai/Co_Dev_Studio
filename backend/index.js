@@ -110,16 +110,19 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const Room = require('./models/Room');
 const Message = require('./models/Message');
+const { GoogleGenerativeAI } = require("@google/generative-ai"); // Import Gemini
 
 const app = express();
 app.use(cors());
 
+// Initialize Gemini AI with the free Flash model
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest"});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    // ** THIS IS THE FIX **
-    // We now allow both our local and deployed frontends to connect
-    origin: ["http://localhost:3000", "https://co-dev-studio.vercel.app"],
+    origin: ["http://localhost:3000", "https://co-dev-studio.vercel.app"], // Your live URL
     methods: ["GET", "POST"]
   }
 });
@@ -129,7 +132,6 @@ const roomUsers = {};
 
 app.get('/', (req, res) => { res.send('Backend server is running!'); });
 
-// ... (The rest of your io.on('connection', ...) and mongoose.connect(...) code remains exactly the same)
 io.on('connection', (socket) => {
   console.log(`✅ User connected: ${socket.id}`);
 
@@ -146,7 +148,7 @@ io.on('connection', (socket) => {
     const messageHistory = await Message.find({ roomId }).sort({ timestamp: 1 }).limit(50);
     socket.emit('load-history', messageHistory);
   });
-
+  
   socket.on('pin-message', async ({ roomId, message }) => {
     await Room.updateOne({ roomId }, { pinnedMessage: message });
     io.to(roomId).emit('update-pinned-message', message);
@@ -160,13 +162,27 @@ io.on('connection', (socket) => {
       });
       await newMessage.save();
     }
-
+    
     if (data.text.startsWith('@ai ')) {
-      const disabledMessage = {
-          roomId: data.roomId, text: "The AI feature is currently disabled by the administrator.",
-          username: 'AI', socketId: 'ai-disabled', id: `ai-disabled-${Date.now()}`
-      };
-      io.to(data.roomId).emit('receive-message', disabledMessage);
+      const prompt = data.text.substring(4);
+      try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const aiText = response.text();
+
+        const aiMessage = {
+          roomId: data.roomId, text: aiText,
+          username: 'AI', socketId: 'ai-generated', id: `ai-${Date.now()}`
+        };
+        io.to(data.roomId).emit('receive-message', aiMessage);
+      } catch (error) {
+        console.error("Error with Gemini API:", error);
+        const errorMessage = {
+            roomId: data.roomId, text: "Sorry, the AI is unavailable at the moment.",
+            username: 'AI', socketId: 'ai-error', id: `ai-error-${Date.now()}`
+        };
+        io.to(data.roomId).emit('receive-message', errorMessage);
+      }
     } else {
       socket.to(data.roomId).emit('receive-message', data);
     }
