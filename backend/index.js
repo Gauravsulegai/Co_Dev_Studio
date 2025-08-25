@@ -119,7 +119,7 @@ const io = new Server(server, {
   cors: {
     // ** THIS IS THE FIX **
     // We now allow both our local and deployed frontends to connect
-    origin: ["http://localhost:3000", "https://your-live-frontend-url.vercel.app"],
+    origin: ["http://localhost:3000", "https://co-dev-studio.vercel.app"],
     methods: ["GET", "POST"]
   }
 });
